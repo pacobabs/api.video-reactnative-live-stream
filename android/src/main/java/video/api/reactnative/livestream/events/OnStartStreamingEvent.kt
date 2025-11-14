@@ -6,7 +6,7 @@ import com.facebook.react.uimanager.events.RCTEventEmitter
 import video.api.reactnative.livestream.ViewProps
 
 class OnStartStreamingEvent(
-  private val viewTag: Int,
+  viewTag: Int,
   private val requestId: Int,
   private val result: Boolean,
   private val error: String? = null

@@ -4,7 +4,7 @@ import com.facebook.react.uimanager.events.Event
 import com.facebook.react.uimanager.events.RCTEventEmitter
 import video.api.reactnative.livestream.ViewProps
 
-class OnDisconnectEvent(private val viewTag: Int) :
+class OnDisconnectEvent(viewTag: Int) :
   Event<OnDisconnectEvent>(viewTag) {
   override fun getEventName() = ViewProps.Events.DISCONNECTED.eventName
 
