@@ -176,12 +176,41 @@ dependencies {
     implementation "com.facebook.react:react-android:${getExtOrDefault('reactNativeVersion') ?: '0.73.6'}"
   }
 
-  implementation("video.api:android-live-stream:1.4.3") {
+  def apiVideoLiveStreamVersion = "1.4.3"
+
+  implementation("video.api:android-live-stream:$apiVideoLiveStreamVersion") {
     exclude group: 'video.api', module: 'rtmpdroid'
     // exclude the transitive dependency to use packed version to avoid conflict with libssl.so and libcrypto.so
   }
-  implementation(project(":api.video-rtmpdroid"))
+  implementation("video.api:rtmpdroid-packed:$apiVideoLiveStreamVersion")
   implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+}
+
+def codegenOutputDir = file("$buildDir/generated/source/codegen/jni")
+def staticCodegenDir = file("$projectDir/codegen/jni")
+
+def ensureApiVideoCodegen = {
+  if (!staticCodegenDir.exists()) {
+    throw new GradleException("Static codegen directory not found at $staticCodegenDir")
+  }
+  project.delete(codegenOutputDir)
+  project.copy {
+    from(staticCodegenDir)
+    into(codegenOutputDir)
+  }
+}
+
+ensureApiVideoCodegen()
+
+tasks.register("prepareApiVideoCodegen") {
+  outputs.dir(codegenOutputDir)
+  doLast {
+    ensureApiVideoCodegen()
+  }
+}
+
+tasks.matching { it.name.startsWith("externalNativeBuild") }.configureEach {
+  dependsOn("prepareApiVideoCodegen")
 }
 
 if (isNewArchitectureEnabled()) {
