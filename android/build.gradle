@@ -1,4 +1,6 @@
 import com.android.Version
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.gradle.api.attributes.Attribute
 
 import java.nio.file.Paths
 
@@ -19,11 +21,31 @@ buildscript {
 }
 
 def getExtOrDefault(name) {
-  return rootProject.ext.has(name) ? rootProject.ext.get(name) : project.properties["ApiVideoLivestream_" + name]
+  if (rootProject.ext.has(name)) {
+    return rootProject.ext.get(name)
+  }
+  def lowerKey = "ApiVideoLivestream_${name}"
+  if (project.hasProperty(lowerKey)) {
+    return project.properties[lowerKey]
+  }
+  def camelKey = "ApiVideoLiveStream_${name}"
+  if (project.hasProperty(camelKey)) {
+    return project.properties[camelKey]
+  }
+  return null
 }
 
 def getExtOrIntegerDefault(prop) {
-  return getExtOrDefault(prop).toInteger()
+  def value = getExtOrDefault(prop)
+  if (value == null) {
+    def fallbacks = [
+      compileSdkVersion: 35,
+      minSdkVersion    : 24,
+      targetSdkVersion : 35
+    ]
+    return fallbacks[prop].toInteger()
+  }
+  return value.toInteger()
 }
 
 static def findNodeModulePath(baseDir, packageName) {
@@ -58,9 +80,7 @@ static def supportsNamespace() {
 }
 
 apply plugin: 'com.android.library'
-if (isNewArchitectureEnabled()) {
-    apply plugin: 'com.facebook.react'
-}
+apply plugin: 'com.facebook.react'
 apply plugin: 'kotlin-android'
 
 android {
@@ -74,7 +94,7 @@ android {
     }
   }
 
-  ndkVersion getExtOrDefault("ndkVersion")
+  ndkVersion (getExtOrDefault("ndkVersion") ?: "27.1.12297006")
   compileSdkVersion getExtOrIntegerDefault("compileSdkVersion")
 
   defaultConfig {
@@ -84,18 +104,48 @@ android {
   }
 
   compileOptions {
-    sourceCompatibility JavaVersion.VERSION_1_8
-    targetCompatibility JavaVersion.VERSION_1_8
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+
+  buildFeatures {
+    buildConfig true
+  }
+
+  kotlinOptions {
+    jvmTarget = "17"
   }
 
   sourceSets {
     main {
+      jniLibs.srcDirs = []
       if (isNewArchitectureEnabled()) {
         java.srcDirs += ["src/newarch"]
       } else {
         java.srcDirs += ["src/oldarch"]
       }
     }
+  }
+}
+
+kotlin {
+  jvmToolchain {
+    languageVersion.set(JavaLanguageVersion.of(17))
+  }
+  compilerOptions {
+    jvmTarget.set(JvmTarget.JVM_17)
+  }
+}
+
+java {
+  toolchain {
+    languageVersion = JavaLanguageVersion.of(17)
+  }
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+  kotlinOptions {
+    jvmTarget = "17"
   }
 }
 
@@ -107,8 +157,10 @@ if (codegenPath == null) {
 }
 
 repositories {
-    maven {
-        url "${reactNativePath}/android"
+    if (reactNativePath) {
+        maven {
+            url "${reactNativePath}/android"
+        }
     }
     mavenCentral()
     google()
@@ -118,13 +170,24 @@ dependencies {
   // For < 0.71, this will be from the local maven repo
   // For > 0.71, this will be replaced by `com.facebook.react:react-android:$version` by react gradle plugin
   //noinspection GradleDynamicVersion
-  implementation "com.facebook.react:react-native:+"
+  if (reactNativePath) {
+    implementation "com.facebook.react:react-native:+"
+  } else {
+    implementation "com.facebook.react:react-android:${getExtOrDefault('reactNativeVersion') ?: '0.73.6'}"
+  }
 
-  implementation("video.api:rtmpdroid:1.2.1-packed")
   implementation("video.api:android-live-stream:1.4.3") {
     exclude group: 'video.api', module: 'rtmpdroid'
     // exclude the transitive dependency to use packed version to avoid conflict with libssl.so and libcrypto.so
   }
-
+  implementation(project(":api.video-rtmpdroid"))
   implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+}
+
+if (isNewArchitectureEnabled()) {
+  react {
+    jsRootDir = file("../src")
+    libraryName = "ApiVideoLiveStreamView"
+    codegenJavaPackageName = "video.api.reactnative.livestream"
+  }
 }
