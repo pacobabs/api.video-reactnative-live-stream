@@ -6,9 +6,9 @@ import video.api.reactnative.livestream.ViewProps
 
 class OnDisconnectEvent(
   surfaceId: Int,
-  viewTag: Int
+  private val targetViewTag: Int
 ) :
-  Event<OnDisconnectEvent>(surfaceId, viewTag) {
+  Event<OnDisconnectEvent>(surfaceId, targetViewTag) {
   @Deprecated("Use constructor with explicit surfaceId instead.")
   constructor(viewTag: Int) : this(-1, viewTag)
 
@@ -16,6 +16,6 @@ class OnDisconnectEvent(
 
   @Deprecated("Use receiveEvent(surfaceId, viewTag, eventName, params) instead.")
   override fun dispatch(rctEventEmitter: RCTEventEmitter) {
-    rctEventEmitter.receiveEvent(viewTag, eventName, null)
+    rctEventEmitter.receiveEvent(targetViewTag, eventName, null)
   }
 }

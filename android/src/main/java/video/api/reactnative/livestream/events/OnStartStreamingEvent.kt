@@ -7,12 +7,12 @@ import video.api.reactnative.livestream.ViewProps
 
 class OnStartStreamingEvent(
   surfaceId: Int,
-  viewTag: Int,
+  private val targetViewTag: Int,
   private val requestId: Int,
   private val result: Boolean,
   private val error: String? = null
 ) :
-  Event<OnStartStreamingEvent>(surfaceId, viewTag) {
+  Event<OnStartStreamingEvent>(surfaceId, targetViewTag) {
   @Deprecated("Use constructor with explicit surfaceId instead.")
   constructor(
     viewTag: Int,
@@ -31,6 +31,6 @@ class OnStartStreamingEvent(
 
   @Deprecated("Use receiveEvent(surfaceId, viewTag, eventName, params) instead.")
   override fun dispatch(rctEventEmitter: RCTEventEmitter) {
-    rctEventEmitter.receiveEvent(viewTag, eventName, params)
+    rctEventEmitter.receiveEvent(targetViewTag, eventName, params)
   }
 }

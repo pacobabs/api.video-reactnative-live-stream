@@ -7,10 +7,10 @@ import video.api.reactnative.livestream.ViewProps
 
 class OnConnectionFailedEvent(
   surfaceId: Int,
-  viewTag: Int,
+  private val targetViewTag: Int,
   private val reason: String?
 ) :
-  Event<OnConnectionFailedEvent>(surfaceId, viewTag) {
+  Event<OnConnectionFailedEvent>(surfaceId, targetViewTag) {
   @Deprecated("Use constructor with explicit surfaceId instead.")
   constructor(viewTag: Int, reason: String?) : this(-1, viewTag, reason)
 
@@ -22,6 +22,6 @@ class OnConnectionFailedEvent(
 
   @Deprecated("Use receiveEvent(surfaceId, viewTag, eventName, params) instead.")
   override fun dispatch(rctEventEmitter: RCTEventEmitter) {
-    rctEventEmitter.receiveEvent(viewTag, eventName, params)
+    rctEventEmitter.receiveEvent(targetViewTag, eventName, params)
   }
 }

@@ -7,10 +7,10 @@ import video.api.reactnative.livestream.ViewProps
 
 class OnPermissionsDeniedEvent(
   surfaceId: Int,
-  viewTag: Int,
+  private val targetViewTag: Int,
   private val permissions: List<String>
 ) :
-  Event<OnPermissionsDeniedEvent>(surfaceId, viewTag) {
+  Event<OnPermissionsDeniedEvent>(surfaceId, targetViewTag) {
   @Deprecated("Use constructor with explicit surfaceId instead.")
   constructor(viewTag: Int, permissions: List<String>) : this(-1, viewTag, permissions)
 
@@ -22,6 +22,6 @@ class OnPermissionsDeniedEvent(
 
   @Deprecated("Use receiveEvent(surfaceId, viewTag, eventName, params) instead.")
   override fun dispatch(rctEventEmitter: RCTEventEmitter) {
-    rctEventEmitter.receiveEvent(viewTag, eventName, params)
+    rctEventEmitter.receiveEvent(targetViewTag, eventName, params)
   }
 }
