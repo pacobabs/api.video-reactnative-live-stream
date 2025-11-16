@@ -101,22 +101,79 @@ public class RNLiveStreamViewImpl: UIView {
         }
     }
 
+    // Helper function to parse resolution string (e.g., "1080p") or dictionary
+    private func parseResolution(_ resolution: Any?) -> CGSize {
+        guard let resolution = resolution else {
+            return CGSize(width: 1920, height: 1080) // Default to 1080p
+        }
+        
+        // If it's a string like "1080p", "720p", etc.
+        if let resolutionString = resolution as? String {
+            switch resolutionString.lowercased() {
+            case "1080p", "fhd":
+                return CGSize(width: 1920, height: 1080)
+            case "720p", "hd":
+                return CGSize(width: 1280, height: 720)
+            case "480p", "sd":
+                return CGSize(width: 854, height: 480)
+            case "360p":
+                return CGSize(width: 640, height: 360)
+            default:
+                print("⚠️ [RNLiveStreamViewImpl] Unknown resolution string: \(resolutionString), defaulting to 1080p")
+                return CGSize(width: 1920, height: 1080)
+            }
+        }
+        
+        // If it's a dictionary with width and height
+        if let resolutionDict = resolution as? Dictionary<String, Int>,
+           let width = resolutionDict["width"],
+           let height = resolutionDict["height"] {
+            return CGSize(width: width, height: height)
+        }
+        
+        // Fallback to default
+        print("⚠️ [RNLiveStreamViewImpl] Invalid resolution format, defaulting to 1080p")
+        return CGSize(width: 1920, height: 1080)
+    }
+
     @objc public var audio: NSDictionary = [:] {
         didSet {
-            audioConfig = AudioConfig(bitrate: audio["bitrate"] as! Int)
+            guard let liveStream = liveStream else { return }
+            guard let bitrate = audio["bitrate"] as? Int else {
+                print("⚠️ [RNLiveStreamViewImpl] Missing or invalid audio bitrate")
+                return
+            }
+            audioConfig = AudioConfig(bitrate: bitrate)
         }
     }
 
     @objc public var video: NSDictionary = [:] {
         didSet {
+            guard let liveStream = liveStream else { return }
+            
+            guard let bitrate = video["bitrate"] as? Int else {
+                print("⚠️ [RNLiveStreamViewImpl] Missing or invalid video bitrate")
+                return
+            }
+            
+            guard let fps = video["fps"] as? Float64 else {
+                print("⚠️ [RNLiveStreamViewImpl] Missing or invalid video fps")
+                return
+            }
+            
+            guard let gopDuration = video["gopDuration"] as? Float64 else {
+                print("⚠️ [RNLiveStreamViewImpl] Missing or invalid video gopDuration")
+                return
+            }
+            
             if isStreaming {
-                videoBitrate = video["bitrate"] as! Int
+                videoBitrate = bitrate
             } else {
-                let resolution = video["resolution"] as! Dictionary<String, Int>
-                videoConfig = VideoConfig(bitrate: video["bitrate"] as! Int,
-                                          resolution: CGSize(width: resolution["width"]!, height: resolution["height"]!),
-                                          fps: video["fps"] as! Float64,
-                                          gopDuration: video["gopDuration"] as! Float64)
+                let resolution = parseResolution(video["resolution"])
+                videoConfig = VideoConfig(bitrate: bitrate,
+                                          resolution: resolution,
+                                          fps: fps,
+                                          gopDuration: gopDuration)
             }
         }
     }
