@@ -51,7 +51,7 @@ public class RNLiveStreamViewImpl: UIView {
         // This also helps avoid permission-related crashes
     }
     
-    override func layoutSubviews() {
+    public override func layoutSubviews() {
         super.layoutSubviews()
         
         // Initialize only once when view is laid out
@@ -157,7 +157,7 @@ public class RNLiveStreamViewImpl: UIView {
 
     @objc public var audio: NSDictionary = [:] {
         didSet {
-            guard let liveStream = liveStream else { return }
+            guard liveStream != nil else { return }
             guard let bitrate = audio["bitrate"] as? Int else {
                 print("⚠️ [RNLiveStreamViewImpl] Missing or invalid audio bitrate")
                 return
@@ -168,7 +168,7 @@ public class RNLiveStreamViewImpl: UIView {
 
     @objc public var video: NSDictionary = [:] {
         didSet {
-            guard let liveStream = liveStream else { return }
+            guard liveStream != nil else { return }
             
             guard let bitrate = video["bitrate"] as? Int else {
                 print("⚠️ [RNLiveStreamViewImpl] Missing or invalid video bitrate")
