@@ -220,86 +220,61 @@ if (isNewArchitectureEnabled()) {
 
 // Exclude rtmpdroid classes from the AAR's classes.jar
 // This prevents duplicate classes when the app includes the JAR directly
-tasks.named("bundleReleaseAar").configure {
-  doLast {
-    def aarFile = file("${buildDir}/outputs/aar/${project.name}-release.aar")
-    if (aarFile.exists()) {
-      def tempDir = file("${buildDir}/tmp/aar-cleanup")
-      tempDir.deleteDir()
-      tempDir.mkdirs()
-      
-      // Extract AAR
-      copy {
-        from zipTree(aarFile)
-        into tempDir
-      }
-      
-      // Remove rtmpdroid classes from classes.jar
-      def classesJar = file("${tempDir}/classes.jar")
-      if (classesJar.exists()) {
-        def classesTempDir = file("${tempDir}/classes-extracted")
-        classesTempDir.deleteDir()
-        classesTempDir.mkdirs()
-        
-        // Extract classes.jar
-        copy {
-          from zipTree(classesJar)
-          into classesTempDir
-        }
-        
-        // Delete rtmpdroid package
-        file("${classesTempDir}/video/api/rtmpdroid").deleteDir()
-        
-        // Recreate classes.jar without rtmpdroid
-        ant.jar(destfile: classesJar, basedir: classesTempDir)
-        classesTempDir.deleteDir()
-      }
-      
-      // Recreate AAR
-      ant.zip(destfile: aarFile, basedir: tempDir, includes: "**/*")
-      tempDir.deleteDir()
+def excludeRtmpdroidFromAar = { aarFile ->
+  if (aarFile.exists()) {
+    def tempDir = file("${buildDir}/tmp/aar-cleanup")
+    tempDir.deleteDir()
+    tempDir.mkdirs()
+    
+    // Extract AAR
+    copy {
+      from zipTree(aarFile)
+      into tempDir
     }
+    
+    // Remove rtmpdroid classes from classes.jar
+    def classesJar = file("${tempDir}/classes.jar")
+    if (classesJar.exists()) {
+      def classesTempDir = file("${tempDir}/classes-extracted")
+      classesTempDir.deleteDir()
+      classesTempDir.mkdirs()
+      
+      // Extract classes.jar
+      copy {
+        from zipTree(classesJar)
+        into classesTempDir
+      }
+      
+      // Delete rtmpdroid package
+      file("${classesTempDir}/video/api/rtmpdroid").deleteDir()
+      
+      // Recreate classes.jar without rtmpdroid
+      ant.jar(destfile: classesJar, basedir: classesTempDir)
+      classesTempDir.deleteDir()
+    }
+    
+    // Recreate AAR
+    ant.zip(destfile: aarFile, basedir: tempDir, includes: "**/*")
+    tempDir.deleteDir()
   }
 }
 
-tasks.named("bundleDebugAar").configure {
-  doLast {
-    def aarFile = file("${buildDir}/outputs/aar/${project.name}-debug.aar")
-    if (aarFile.exists()) {
-      def tempDir = file("${buildDir}/tmp/aar-cleanup")
-      tempDir.deleteDir()
-      tempDir.mkdirs()
-      
-      // Extract AAR
-      copy {
-        from zipTree(aarFile)
-        into tempDir
-      }
-      
-      // Remove rtmpdroid classes from classes.jar
-      def classesJar = file("${tempDir}/classes.jar")
-      if (classesJar.exists()) {
-        def classesTempDir = file("${tempDir}/classes-extracted")
-        classesTempDir.deleteDir()
-        classesTempDir.mkdirs()
-        
-        // Extract classes.jar
-        copy {
-          from zipTree(classesJar)
-          into classesTempDir
-        }
-        
-        // Delete rtmpdroid package
-        file("${classesTempDir}/video/api/rtmpdroid").deleteDir()
-        
-        // Recreate classes.jar without rtmpdroid
-        ant.jar(destfile: classesJar, basedir: classesTempDir)
-        classesTempDir.deleteDir()
-      }
-      
-      // Recreate AAR
-      ant.zip(destfile: aarFile, basedir: tempDir, includes: "**/*")
-      tempDir.deleteDir()
+// Hook into assemble tasks to clean AAR after creation
+afterEvaluate {
+  tasks.matching { it.name == "assembleRelease" || it.name == "assembleDebug" }.configureEach { task ->
+    task.doLast {
+      def variantName = task.name.contains("Release") ? "release" : "debug"
+      def aarFile = file("${buildDir}/outputs/aar/${project.name}-${variantName}.aar")
+      excludeRtmpdroidFromAar(aarFile)
+    }
+  }
+  
+  // Also handle bundle tasks if they exist
+  tasks.matching { it.name == "bundleReleaseAar" || it.name == "bundleDebugAar" }.configureEach { task ->
+    task.doLast {
+      def variantName = task.name.contains("Release") ? "release" : "debug"
+      def aarFile = file("${buildDir}/outputs/aar/${project.name}-${variantName}.aar")
+      excludeRtmpdroidFromAar(aarFile)
     }
   }
 }
