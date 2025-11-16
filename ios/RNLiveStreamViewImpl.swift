@@ -45,13 +45,28 @@ public class RNLiveStreamViewImpl: UIView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-
+        
+        // Delay initialization until view is laid out to ensure proper frame
+        // This also helps avoid permission-related crashes
+    }
+    
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        
+        // Initialize only once when view is laid out
+        if liveStream == nil && initializationError == nil {
+            initializeLiveStream()
+        }
+    }
+    
+    private func initializeLiveStream() {
         do {
             let stream = try ApiVideoLiveStream(preview: self, initialAudioConfig: nil, initialVideoConfig: nil, initialCamera: nil)
             stream.delegate = self
             liveStream = stream
             initializationError = nil
             addGestureRecognizer(zoomGesture)
+            print("✅ [RNLiveStreamViewImpl] ApiVideoLiveStream initialized successfully")
         } catch {
             // Store error instead of crashing - React Native can handle this gracefully
             initializationError = error
