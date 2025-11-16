@@ -271,8 +271,10 @@ def excludeRtmpdroidFromAar = { aarFile ->
       ["bundleLibRuntimeToDirRelease", "bundleLibRuntimeToDirDebug"].each { variant ->
         def bundleLibDir = new File(transformDir, "transformed/${variant}")
         if (bundleLibDir.exists()) {
+          // Look for rtmpdroid in the variant directory and its subdirectories (like bundleLibRuntimeToDirRelease_dex)
           bundleLibDir.eachFileRecurse { file ->
-            if (file.name.contains("rtmpdroid") && (file.name.endsWith(".dex") || file.isDirectory())) {
+            def path = file.absolutePath
+            if (path.contains("rtmpdroid")) {
               if (file.isDirectory()) {
                 file.deleteDir()
               } else {
