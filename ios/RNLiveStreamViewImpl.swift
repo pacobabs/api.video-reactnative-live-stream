@@ -240,6 +240,39 @@ public class RNLiveStreamViewImpl: UIView {
     }
 
     @objc public func startStreaming(requestId: Int, streamKey: String, url: String?) {
+        // Ensure we're on the main thread
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { [weak self] in
+                self?.startStreaming(requestId: requestId, streamKey: streamKey, url: url)
+            }
+            return
+        }
+        
+        // If liveStream is not initialized yet, wait for it or initialize now
+        if liveStream == nil {
+            if initializationError != nil {
+                // Already tried and failed
+                let errorMessage = initializationError?.localizedDescription ?? "Live stream not initialized. Check camera/microphone permissions."
+                onStartStreaming([
+                    "requestId": requestId,
+                    "result": false,
+                    "error": errorMessage,
+                ])
+                return
+            }
+            
+            // Try to initialize now if not already in progress
+            if frame.width > 0 && frame.height > 0 {
+                initializeLiveStream()
+            } else {
+                // Wait a bit for layout
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                    self?.startStreaming(requestId: requestId, streamKey: streamKey, url: url)
+                }
+                return
+            }
+        }
+        
         guard let liveStream = liveStream else {
             let errorMessage = initializationError?.localizedDescription ?? "Live stream not initialized. Check camera/microphone permissions."
             onStartStreaming([
@@ -311,19 +344,40 @@ public class RNLiveStreamViewImpl: UIView {
 extension RNLiveStreamViewImpl: ApiVideoLiveStreamDelegate {
     /// Called when the connection to the rtmp server is successful
     public func connectionSuccess() {
-        onConnectionSuccess([:])
+        // Ensure delegate callbacks are on main thread
+        if Thread.isMainThread {
+            onConnectionSuccess([:])
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.onConnectionSuccess([:])
+            }
+        }
     }
 
     /// Called when the connection to the rtmp server failed
     public func connectionFailed(_ code: String) {
         isStreaming = false
-        onConnectionFailed(["code": code])
+        // Ensure delegate callbacks are on main thread
+        if Thread.isMainThread {
+            onConnectionFailed(["code": code])
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.onConnectionFailed(["code": code])
+            }
+        }
     }
 
     /// Called when the connection to the rtmp server is closed
     public func disconnection() {
         isStreaming = false
-        onDisconnect([:])
+        // Ensure delegate callbacks are on main thread
+        if Thread.isMainThread {
+            onDisconnect([:])
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.onDisconnect([:])
+            }
+        }
     }
 
     /// Called if an error happened during the audio configuration
