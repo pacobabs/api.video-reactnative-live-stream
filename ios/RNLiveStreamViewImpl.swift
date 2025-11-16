@@ -46,22 +46,17 @@ public class RNLiveStreamViewImpl: UIView {
     override init(frame: CGRect) {
         super.init(frame: frame)
 
-        // Initialize on main thread to avoid threading issues
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            
-            do {
-                let stream = try ApiVideoLiveStream(preview: self, initialAudioConfig: nil, initialVideoConfig: nil, initialCamera: nil)
-                stream.delegate = self
-                self.liveStream = stream
-                self.initializationError = nil
-                self.addGestureRecognizer(self.zoomGesture)
-            } catch {
-                // Store error instead of crashing - React Native can handle this gracefully
-                self.initializationError = error
-                print("⚠️ [RNLiveStreamViewImpl] Failed to initialize ApiVideoLiveStream: \(error.localizedDescription)")
-                // Don't add gesture recognizer if initialization failed
-            }
+        do {
+            let stream = try ApiVideoLiveStream(preview: self, initialAudioConfig: nil, initialVideoConfig: nil, initialCamera: nil)
+            stream.delegate = self
+            liveStream = stream
+            initializationError = nil
+            addGestureRecognizer(zoomGesture)
+        } catch {
+            // Store error instead of crashing - React Native can handle this gracefully
+            initializationError = error
+            print("⚠️ [RNLiveStreamViewImpl] Failed to initialize ApiVideoLiveStream: \(error.localizedDescription)")
+            // Don't add gesture recognizer if initialization failed
         }
     }
 
