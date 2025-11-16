@@ -36,8 +36,9 @@ extension AVCaptureDevice.Position {
 
 @objc(RNLiveStreamViewImpl)
 public class RNLiveStreamViewImpl: UIView {
-    private var liveStream: ApiVideoLiveStream!
+    private var liveStream: ApiVideoLiveStream?
     private var isStreaming: Bool = false
+    private var initializationError: Error?
 
     private lazy var zoomGesture: UIPinchGestureRecognizer = .init(target: self, action: #selector(zoom(sender:)))
     private let pinchZoomMultiplier: CGFloat = 2.2
@@ -46,10 +47,16 @@ public class RNLiveStreamViewImpl: UIView {
         super.init(frame: frame)
 
         do {
-            liveStream = try ApiVideoLiveStream(preview: self, initialAudioConfig: nil, initialVideoConfig: nil, initialCamera: nil)
-            liveStream.delegate = self
+            let stream = try ApiVideoLiveStream(preview: self, initialAudioConfig: nil, initialVideoConfig: nil, initialCamera: nil)
+            stream.delegate = self
+            liveStream = stream
+            initializationError = nil
         } catch {
-            fatalError("build(): Can't create a live stream instance")
+            // Store error instead of crashing - React Native can handle this gracefully
+            initializationError = error
+            print("⚠️ [RNLiveStreamViewImpl] Failed to initialize ApiVideoLiveStream: \(error.localizedDescription)")
+            // Don't add gesture recognizer if initialization failed
+            return
         }
 
         addGestureRecognizer(zoomGesture)
@@ -62,28 +69,35 @@ public class RNLiveStreamViewImpl: UIView {
 
     private var videoBitrate: Int {
         get {
+            guard let liveStream = liveStream else { return 0 }
             return liveStream.videoBitrate
         }
         set {
-            liveStream.videoBitrate = newValue
+            liveStream?.videoBitrate = newValue
         }
     }
 
     private var audioConfig: AudioConfig {
         get {
-            liveStream.audioConfig
+            guard let liveStream = liveStream else {
+                return AudioConfig(bitrate: 96000)
+            }
+            return liveStream.audioConfig
         }
         set {
-            liveStream.audioConfig = newValue
+            liveStream?.audioConfig = newValue
         }
     }
 
     private var videoConfig: VideoConfig {
         get {
-            liveStream.videoConfig
+            guard let liveStream = liveStream else {
+                return VideoConfig(bitrate: 1500000, resolution: CGSize(width: 1920, height: 1080), fps: 30, gopDuration: 1)
+            }
+            return liveStream.videoConfig
         }
         set {
-            liveStream.videoConfig = newValue
+            liveStream?.videoConfig = newValue
         }
     }
 
@@ -109,9 +123,11 @@ public class RNLiveStreamViewImpl: UIView {
 
     @objc public var camera: String {
         get {
+            guard let liveStream = liveStream else { return "back" }
             return liveStream.cameraPosition.toCameraPositionName()
         }
         set {
+            guard let liveStream = liveStream else { return }
             let value = newValue.toCaptureDevicePosition()
             if value == liveStream.cameraPosition {
                 return
@@ -122,9 +138,11 @@ public class RNLiveStreamViewImpl: UIView {
 
     @objc public var isMuted: Bool {
         get {
+            guard let liveStream = liveStream else { return false }
             return liveStream.isMuted
         }
         set {
+            guard let liveStream = liveStream else { return }
             if newValue == liveStream.isMuted {
                 return
             }
@@ -134,10 +152,11 @@ public class RNLiveStreamViewImpl: UIView {
 
     @objc public var zoomRatio: Float {
         get {
+            guard let liveStream = liveStream else { return 1.0 }
             return Float(liveStream.zoomRatio)
         }
         set {
-            liveStream.zoomRatio = CGFloat(newValue)
+            liveStream?.zoomRatio = CGFloat(newValue)
         }
     }
 
@@ -151,6 +170,16 @@ public class RNLiveStreamViewImpl: UIView {
     }
 
     @objc public func startStreaming(requestId: Int, streamKey: String, url: String?) {
+        guard let liveStream = liveStream else {
+            let errorMessage = initializationError?.localizedDescription ?? "Live stream not initialized. Check camera/microphone permissions."
+            onStartStreaming([
+                "requestId": requestId,
+                "result": false,
+                "error": errorMessage,
+            ])
+            return
+        }
+        
         do {
            if let url = url {
                try liveStream.startStreaming(streamKey: streamKey, url: url)
@@ -179,15 +208,16 @@ public class RNLiveStreamViewImpl: UIView {
 
     @objc public func stopStreaming() {
         isStreaming = false
-        liveStream.stopStreaming()
+        liveStream?.stopStreaming()
     }
 
     @objc public func setZoomRatio(zoomRatio: CGFloat) {
-        liveStream.zoomRatio = zoomRatio
+        liveStream?.zoomRatio = zoomRatio
     }
 
     @objc
     private func zoom(sender: UIPinchGestureRecognizer) {
+        guard let liveStream = liveStream else { return }
         if sender.state == .changed {
             liveStream.zoomRatio = liveStream.zoomRatio + (sender.scale - 1) * pinchZoomMultiplier
             sender.scale = 1
@@ -204,7 +234,7 @@ public class RNLiveStreamViewImpl: UIView {
     
     @objc override public func removeFromSuperview() {
         super.removeFromSuperview()
-        liveStream.stopPreview()
+        liveStream?.stopPreview()
     }
 }
 
@@ -227,8 +257,12 @@ extension RNLiveStreamViewImpl: ApiVideoLiveStreamDelegate {
     }
 
     /// Called if an error happened during the audio configuration
-    public func audioError(_: Error) {}
+    public func audioError(_ error: Error) {
+        print("⚠️ [RNLiveStreamViewImpl] Audio error: \(error.localizedDescription)")
+    }
 
     /// Called if an error happened during the video configuration
-    public func videoError(_: Error) {}
+    public func videoError(_ error: Error) {
+        print("⚠️ [RNLiveStreamViewImpl] Video error: \(error.localizedDescription)")
+    }
 }
