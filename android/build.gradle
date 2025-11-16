@@ -96,26 +96,11 @@ android {
 
   ndkVersion (getExtOrDefault("ndkVersion") ?: "27.1.12297006")
   compileSdkVersion getExtOrIntegerDefault("compileSdkVersion")
-  def enableFlexiblePageSize =
-    !(project.findProperty("rtmpdroidLegacyPages")?.toString()?.toBoolean() ?: false)
 
   defaultConfig {
     minSdkVersion getExtOrIntegerDefault("minSdkVersion")
     targetSdkVersion getExtOrIntegerDefault("targetSdkVersion")
     buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", isNewArchitectureEnabled().toString()
-    consumerProguardFiles "consumer-rules.pro"
-    externalNativeBuild {
-      cmake {
-        if (enableFlexiblePageSize) {
-          arguments "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
-          arguments "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384"
-          arguments "-DPACKAGING=PACKED"
-        } else {
-          arguments "-DPACKAGING=UNPACKED"
-        }
-        abiFilters "armeabi-v7a", "arm64-v8a"
-      }
-    }
   }
 
   compileOptions {
@@ -127,36 +112,24 @@ android {
     buildConfig true
   }
 
-  externalNativeBuild {
-    cmake {
-      path "src/main/cpp/CMakeLists.txt"
-      version "3.22.1"
-    }
-  }
-
-  buildTypes {
-    release {
-      minifyEnabled false
-      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-    }
-    debug {
-      minifyEnabled false
-      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-    }
-  }
-
   kotlinOptions {
     jvmTarget = "17"
   }
 
   sourceSets {
     main {
-      jniLibs.srcDirs = []
+      jniLibs.srcDirs = ["src/main/jniLibs"]
       if (isNewArchitectureEnabled()) {
         java.srcDirs += ["src/newarch"]
       } else {
         java.srcDirs += ["src/oldarch"]
       }
+    }
+  }
+
+  packaging {
+    jniLibs {
+      pickFirsts += ["**/librtmpdroid.so"]
     }
   }
 }
@@ -213,37 +186,8 @@ dependencies {
     exclude group: 'video.api', module: 'rtmpdroid'
     // exclude the transitive dependency to use packed version to avoid conflict with libssl.so and libcrypto.so
   }
-  implementation("video.api:rtmpdroid:1.0.2")
+  implementation(files("libs/rtmpdroid-1.0.2.jar"))
   implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-  implementation 'androidx.core:core-ktx:1.12.0'
-  implementation 'androidx.appcompat:appcompat:1.6.1'
-}
-
-def codegenOutputDir = file("$buildDir/generated/source/codegen/jni")
-def staticCodegenDir = file("$projectDir/codegen/jni")
-
-def ensureApiVideoCodegen = {
-  if (!staticCodegenDir.exists()) {
-    throw new GradleException("Static codegen directory not found at $staticCodegenDir")
-  }
-  project.delete(codegenOutputDir)
-  project.copy {
-    from(staticCodegenDir)
-    into(codegenOutputDir)
-  }
-}
-
-ensureApiVideoCodegen()
-
-tasks.register("prepareApiVideoCodegen") {
-  outputs.dir(codegenOutputDir)
-  doLast {
-    ensureApiVideoCodegen()
-  }
-}
-
-tasks.matching { it.name.startsWith("externalNativeBuild") }.configureEach {
-  dependsOn("prepareApiVideoCodegen")
 }
 
 if (isNewArchitectureEnabled()) {

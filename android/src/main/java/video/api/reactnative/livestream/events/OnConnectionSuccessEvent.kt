@@ -4,17 +4,10 @@ import com.facebook.react.uimanager.events.Event
 import com.facebook.react.uimanager.events.RCTEventEmitter
 import video.api.reactnative.livestream.ViewProps
 
-class OnConnectionSuccessEvent(
-  surfaceId: Int,
-  private val targetViewTag: Int
-) : Event<OnConnectionSuccessEvent>(surfaceId, targetViewTag) {
-  @Deprecated("Use constructor with explicit surfaceId instead.")
-  constructor(viewTag: Int) : this(-1, viewTag)
-
+class OnConnectionSuccessEvent(viewTag: Int): Event<OnConnectionSuccessEvent>(viewTag) {
   override fun getEventName() = ViewProps.Events.CONNECTION_SUCCESS.eventName
 
-  @Deprecated("Use receiveEvent(surfaceId, viewTag, eventName, params) instead.")
   override fun dispatch(rctEventEmitter: RCTEventEmitter) {
-    rctEventEmitter.receiveEvent(targetViewTag, eventName, null)
+    rctEventEmitter.receiveEvent(viewTag, eventName, null)
   }
 }
