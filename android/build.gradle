@@ -132,6 +132,19 @@ android {
       pickFirsts += ["**/librtmpdroid.so"]
     }
   }
+  
+  // Exclude rtmpdroid from runtime configurations to prevent classes from being bundled
+  configurations {
+    runtimeElements {
+      exclude group: 'video.api', module: 'rtmpdroid'
+    }
+    releaseRuntimeClasspath {
+      exclude group: 'video.api', module: 'rtmpdroid'
+    }
+    debugRuntimeClasspath {
+      exclude group: 'video.api', module: 'rtmpdroid'
+    }
+  }
 }
 
 kotlin {
