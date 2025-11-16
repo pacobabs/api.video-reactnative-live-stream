@@ -14,24 +14,48 @@ class RNLiveStreamViewManager: RCTViewManager {
 
     @objc(startStreaming:withRequestId:withStreamKey:withUrl:)
     func startStreaming(_ reactTag: NSNumber, withRequestId requestId: NSNumber, streamKey: String, url: String?) {
-        bridge!.uiManager.addUIBlock { (_: RCTUIManager?, viewRegistry: [NSNumber: UIView]?) in
-            let view: RNLiveStreamViewImpl = (viewRegistry![reactTag] as? RNLiveStreamViewImpl)!
+        guard let bridge = bridge else {
+            print("⚠️ [RNLiveStreamViewManager] Bridge is nil, cannot start streaming")
+            return
+        }
+        bridge.uiManager.addUIBlock { (_: RCTUIManager?, viewRegistry: [NSNumber: UIView]?) in
+            guard let viewRegistry = viewRegistry,
+                  let view = viewRegistry[reactTag] as? RNLiveStreamViewImpl else {
+                print("⚠️ [RNLiveStreamViewManager] View not found for tag: \(reactTag)")
+                return
+            }
             view.startStreaming(requestId: Int(truncating: requestId), streamKey: streamKey, url: url)
         }
     }
 
     @objc(stopStreaming:)
     func stopStreaming(_ reactTag: NSNumber) {
-        bridge!.uiManager.addUIBlock { (_: RCTUIManager?, viewRegistry: [NSNumber: UIView]?) in
-            let view: RNLiveStreamViewImpl = (viewRegistry![reactTag] as? RNLiveStreamViewImpl)!
+        guard let bridge = bridge else {
+            print("⚠️ [RNLiveStreamViewManager] Bridge is nil, cannot stop streaming")
+            return
+        }
+        bridge.uiManager.addUIBlock { (_: RCTUIManager?, viewRegistry: [NSNumber: UIView]?) in
+            guard let viewRegistry = viewRegistry,
+                  let view = viewRegistry[reactTag] as? RNLiveStreamViewImpl else {
+                print("⚠️ [RNLiveStreamViewManager] View not found for tag: \(reactTag)")
+                return
+            }
             view.stopStreaming()
         }
     }
 
     @objc(setZoomRatioCommand:withZoomRatio:)
     func setZoomRatioCommand(_ reactTag: NSNumber, zoomRatio: NSNumber) {
-        bridge!.uiManager.addUIBlock { (_: RCTUIManager?, viewRegistry: [NSNumber: UIView]?) in
-            let view: RNLiveStreamViewImpl = (viewRegistry![reactTag] as? RNLiveStreamViewImpl)!
+        guard let bridge = bridge else {
+            print("⚠️ [RNLiveStreamViewManager] Bridge is nil, cannot set zoom ratio")
+            return
+        }
+        bridge.uiManager.addUIBlock { (_: RCTUIManager?, viewRegistry: [NSNumber: UIView]?) in
+            guard let viewRegistry = viewRegistry,
+                  let view = viewRegistry[reactTag] as? RNLiveStreamViewImpl else {
+                print("⚠️ [RNLiveStreamViewManager] View not found for tag: \(reactTag)")
+                return
+            }
             view.zoomRatio = zoomRatio.floatValue
         }
     }
