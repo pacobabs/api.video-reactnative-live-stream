@@ -186,7 +186,9 @@ dependencies {
     exclude group: 'video.api', module: 'rtmpdroid'
     // exclude the transitive dependency to use packed version to avoid conflict with libssl.so and libcrypto.so
   }
-  implementation(files("libs/rtmpdroid-1.0.2.jar"))
+  // Use compileOnly so the JAR is available at compile time but not bundled in the AAR
+  // The app module will include the JAR directly to avoid duplicate classes
+  compileOnly(files("libs/rtmpdroid-1.0.2.jar"))
   implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
 }
 
