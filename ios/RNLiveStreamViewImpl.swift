@@ -39,6 +39,7 @@ public class RNLiveStreamViewImpl: UIView {
     private var liveStream: ApiVideoLiveStream?
     private var isStreaming: Bool = false
     private var initializationError: Error?
+    private var isInitializing: Bool = false
 
     private lazy var zoomGesture: UIPinchGestureRecognizer = .init(target: self, action: #selector(zoom(sender:)))
     private let pinchZoomMultiplier: CGFloat = 2.2
@@ -54,12 +55,15 @@ public class RNLiveStreamViewImpl: UIView {
         super.layoutSubviews()
         
         // Initialize only once when view is laid out
-        if liveStream == nil && initializationError == nil {
+        if liveStream == nil && initializationError == nil && !isInitializing {
             initializeLiveStream()
         }
     }
     
     private func initializeLiveStream() {
+        guard !isInitializing else { return }
+        isInitializing = true
+        
         do {
             let stream = try ApiVideoLiveStream(preview: self, initialAudioConfig: nil, initialVideoConfig: nil, initialCamera: nil)
             stream.delegate = self
@@ -73,6 +77,8 @@ public class RNLiveStreamViewImpl: UIView {
             print("⚠️ [RNLiveStreamViewImpl] Failed to initialize ApiVideoLiveStream: \(error.localizedDescription)")
             // Don't add gesture recognizer if initialization failed
         }
+        
+        isInitializing = false
     }
 
     @available(*, unavailable)
@@ -261,9 +267,22 @@ public class RNLiveStreamViewImpl: UIView {
                 return
             }
             
+            // If initialization is in progress, wait for it
+            if isInitializing {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                    self?.startStreaming(requestId: requestId, streamKey: streamKey, url: url)
+                }
+                return
+            }
+            
             // Try to initialize now if not already in progress
             if frame.width > 0 && frame.height > 0 {
                 initializeLiveStream()
+                // Wait a bit for initialization to complete
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                    self?.startStreaming(requestId: requestId, streamKey: streamKey, url: url)
+                }
+                return
             } else {
                 // Wait a bit for layout
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
