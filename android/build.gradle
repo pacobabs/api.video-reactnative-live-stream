@@ -124,6 +124,10 @@ android {
       } else {
         java.srcDirs += ["src/oldarch"]
       }
+      // Exclude rtmpdroid classes from source sets to prevent them from being compiled
+      java {
+        exclude "**/video/api/rtmpdroid/**"
+      }
     }
   }
 
@@ -218,7 +222,7 @@ if (isNewArchitectureEnabled()) {
   }
 }
 
-// Exclude rtmpdroid classes from the AAR's classes.jar
+// Exclude rtmpdroid classes from the AAR's classes.jar and intermediate build artifacts
 // This prevents duplicate classes when the app includes the JAR directly
 def excludeRtmpdroidFromAar = { aarFile ->
   if (aarFile.exists()) {
@@ -256,6 +260,29 @@ def excludeRtmpdroidFromAar = { aarFile ->
     // Recreate AAR
     ant.zip(destfile: aarFile, basedir: tempDir, includes: "**/*")
     tempDir.deleteDir()
+  }
+  
+  // Also clean intermediate build artifacts that contain rtmpdroid classes
+  // These are used during the app build and can cause duplicate class errors
+  def transformsDir = file("${buildDir}/.transforms")
+  if (transformsDir.exists()) {
+    transformsDir.eachDir { transformDir ->
+      // Clean both release and debug variants
+      ["bundleLibRuntimeToDirRelease", "bundleLibRuntimeToDirDebug"].each { variant ->
+        def bundleLibDir = new File(transformDir, "transformed/${variant}")
+        if (bundleLibDir.exists()) {
+          bundleLibDir.eachFileRecurse { file ->
+            if (file.name.contains("rtmpdroid") && (file.name.endsWith(".dex") || file.isDirectory())) {
+              if (file.isDirectory()) {
+                file.deleteDir()
+              } else {
+                file.delete()
+              }
+            }
+          }
+        }
+      }
+    }
   }
 }
 
