@@ -253,13 +253,16 @@ public class RNLiveStreamViewImpl: UIView {
     }
 
     @objc public func startStreaming(requestId: Int, streamKey: String, url: String?) {
+        print("🎬 [RNLiveStreamViewImpl] startStreaming called with requestId: \(requestId), streamKey: \(streamKey.prefix(10))..., url: \(url ?? "nil")")
         // Ensure we're on the main thread
         if !Thread.isMainThread {
+            print("⚠️ [RNLiveStreamViewImpl] Not on main thread, dispatching to main thread")
             DispatchQueue.main.async { [weak self] in
                 self?.startStreaming(requestId: requestId, streamKey: streamKey, url: url)
             }
             return
         }
+        print("✅ [RNLiveStreamViewImpl] On main thread, proceeding with startStreaming")
         
         // Store request info for retries
         if currentStartStreamingRequestId != requestId {
