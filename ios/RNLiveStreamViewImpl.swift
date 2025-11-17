@@ -40,6 +40,13 @@ public class RNLiveStreamViewImpl: UIView {
     private var isStreaming: Bool = false
     private var initializationError: Error?
     private var isInitializing: Bool = false
+    
+    // Retry tracking for startStreaming
+    private var startStreamingRetryCount: Int = 0
+    private let maxStartStreamingRetries: Int = 50  // 5 seconds max (50 * 0.1s)
+    private var currentStartStreamingRequestId: Int? = nil
+    private var currentStartStreamingKey: String? = nil
+    private var currentStartStreamingUrl: String? = nil
 
     private lazy var zoomGesture: UIPinchGestureRecognizer = .init(target: self, action: #selector(zoom(sender:)))
     private let pinchZoomMultiplier: CGFloat = 2.2
@@ -254,6 +261,15 @@ public class RNLiveStreamViewImpl: UIView {
             return
         }
         
+        // Store request info for retries
+        if currentStartStreamingRequestId != requestId {
+            // New request - reset retry counter
+            startStreamingRetryCount = 0
+            currentStartStreamingRequestId = requestId
+            currentStartStreamingKey = streamKey
+            currentStartStreamingUrl = url
+        }
+        
         // If liveStream is not initialized yet, wait for it or initialize now
         if liveStream == nil {
             if initializationError != nil {
@@ -264,8 +280,29 @@ public class RNLiveStreamViewImpl: UIView {
                     "result": false,
                     "error": errorMessage,
                 ])
+                // Reset retry tracking
+                startStreamingRetryCount = 0
+                currentStartStreamingRequestId = nil
                 return
             }
+            
+            // Check retry limit
+            if startStreamingRetryCount >= maxStartStreamingRetries {
+                let errorMessage = "Live stream initialization timeout after \(maxStartStreamingRetries * 100)ms. Please try again."
+                print("❌ [RNLiveStreamViewImpl] \(errorMessage)")
+                onStartStreaming([
+                    "requestId": requestId,
+                    "result": false,
+                    "error": errorMessage,
+                ])
+                // Reset retry tracking
+                startStreamingRetryCount = 0
+                currentStartStreamingRequestId = nil
+                return
+            }
+            
+            startStreamingRetryCount += 1
+            print("⏳ [RNLiveStreamViewImpl] Waiting for liveStream initialization (retry \(startStreamingRetryCount)/\(maxStartStreamingRetries))...")
             
             // If initialization is in progress, wait for it
             if isInitializing {
@@ -292,6 +329,10 @@ public class RNLiveStreamViewImpl: UIView {
             }
         }
         
+        // Reset retry counter on success
+        startStreamingRetryCount = 0
+        currentStartStreamingRequestId = nil
+        
         guard let liveStream = liveStream else {
             let errorMessage = initializationError?.localizedDescription ?? "Live stream not initialized. Check camera/microphone permissions."
             onStartStreaming([
@@ -303,23 +344,28 @@ public class RNLiveStreamViewImpl: UIView {
         }
         
         do {
+           print("🎥 [RNLiveStreamViewImpl] Starting stream with key: \(streamKey.prefix(10))... and url: \(url ?? "nil")")
            if let url = url {
                try liveStream.startStreaming(streamKey: streamKey, url: url)
            } else {
                try liveStream.startStreaming(streamKey: streamKey)
            }
            isStreaming = true
+           print("✅ [RNLiveStreamViewImpl] Stream started successfully, calling onStartStreaming callback with requestId: \(requestId)")
            onStartStreaming([
                "requestId": requestId,
                "result": true,
            ])
+           print("✅ [RNLiveStreamViewImpl] onStartStreaming callback called")
        } catch let LiveStreamError.IllegalArgumentError(message) {
+           print("❌ [RNLiveStreamViewImpl] IllegalArgumentError: \(message)")
            self.onStartStreaming([
                "requestId": requestId,
                "result": false,
                "error": message,
            ])
        } catch {
+           print("❌ [RNLiveStreamViewImpl] Error starting stream: \(error.localizedDescription)")
            onStartStreaming([
                "requestId": requestId,
                "result": false,
