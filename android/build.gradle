@@ -151,12 +151,40 @@ android {
 
   sourceSets {
     main {
-      jniLibs.srcDirs = []
+      jniLibs.srcDirs = ["src/main/jniLibs"]
       if (isNewArchitectureEnabled()) {
         java.srcDirs += ["src/newarch"]
       } else {
         java.srcDirs += ["src/oldarch"]
       }
+      // Exclude rtmpdroid classes from source sets to prevent them from being compiled
+      java {
+        exclude "**/video/api/rtmpdroid/**"
+      }
+    }
+  }
+
+  packaging {
+    jniLibs {
+      pickFirsts += ["**/librtmpdroid.so"]
+    }
+    // Exclude rtmpdroid classes from being packaged in the AAR
+    // They come from the JAR file dependency, not from the module's own classes
+    resources {
+      excludes += ["**/video/api/rtmpdroid/**"]
+    }
+  }
+  
+  // Exclude rtmpdroid from runtime configurations to prevent classes from being bundled
+  configurations {
+    runtimeElements {
+      exclude group: 'video.api', module: 'rtmpdroid'
+    }
+    releaseRuntimeClasspath {
+      exclude group: 'video.api', module: 'rtmpdroid'
+    }
+    debugRuntimeClasspath {
+      exclude group: 'video.api', module: 'rtmpdroid'
     }
   }
 }
@@ -217,40 +245,19 @@ dependencies {
     exclude group: 'io.github.thibaultbee', module: 'streampack'
     // Exclude original StreamPack to use patched version
   }
+<<<<<<< HEAD
   
   // Use patched StreamPack from pacobabs fork with Android 8.1 compatibility fixes
   implementation 'com.github.pacobabs:StreamPack:android-8.1-compatibility-SNAPSHOT'
   
+=======
+  // Use compileOnly so the JAR is available at compile time but not bundled in the AAR
+  // The app module will include the JAR directly to avoid duplicate classes
+  compileOnly(files("libs/rtmpdroid-1.0.2.jar"))
+>>>>>>> ef627ae1e1e561a02905707281d2bbdd2c6cde26
   implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
   implementation 'androidx.core:core-ktx:1.12.0'
   implementation 'androidx.appcompat:appcompat:1.6.1'
-}
-
-def codegenOutputDir = file("$buildDir/generated/source/codegen/jni")
-def staticCodegenDir = file("$projectDir/codegen/jni")
-
-def ensureApiVideoCodegen = {
-  if (!staticCodegenDir.exists()) {
-    throw new GradleException("Static codegen directory not found at $staticCodegenDir")
-  }
-  project.delete(codegenOutputDir)
-  project.copy {
-    from(staticCodegenDir)
-    into(codegenOutputDir)
-  }
-}
-
-ensureApiVideoCodegen()
-
-tasks.register("prepareApiVideoCodegen") {
-  outputs.dir(codegenOutputDir)
-  doLast {
-    ensureApiVideoCodegen()
-  }
-}
-
-tasks.matching { it.name.startsWith("externalNativeBuild") }.configureEach {
-  dependsOn("prepareApiVideoCodegen")
 }
 
 if (isNewArchitectureEnabled()) {
@@ -258,5 +265,101 @@ if (isNewArchitectureEnabled()) {
     jsRootDir = file("../src")
     libraryName = "ApiVideoLiveStreamView"
     codegenJavaPackageName = "video.api.reactnative.livestream"
+  }
+}
+
+// Exclude rtmpdroid classes from the AAR's classes.jar and intermediate build artifacts
+// This prevents duplicate classes when the app includes the JAR directly
+def excludeRtmpdroidFromAar = { aarFile ->
+  if (aarFile.exists()) {
+    def tempDir = file("${buildDir}/tmp/aar-cleanup")
+    tempDir.deleteDir()
+    tempDir.mkdirs()
+    
+    // Extract AAR
+    copy {
+      from zipTree(aarFile)
+      into tempDir
+    }
+    
+    // Remove rtmpdroid classes from classes.jar
+    def classesJar = file("${tempDir}/classes.jar")
+    if (classesJar.exists()) {
+      def classesTempDir = file("${tempDir}/classes-extracted")
+      classesTempDir.deleteDir()
+      classesTempDir.mkdirs()
+      
+      // Extract classes.jar
+      copy {
+        from zipTree(classesJar)
+        into classesTempDir
+      }
+      
+      // Delete rtmpdroid package
+      file("${classesTempDir}/video/api/rtmpdroid").deleteDir()
+      
+      // Recreate classes.jar without rtmpdroid
+      ant.jar(destfile: classesJar, basedir: classesTempDir)
+      classesTempDir.deleteDir()
+    }
+    
+    // Recreate AAR
+    ant.zip(destfile: aarFile, basedir: tempDir, includes: "**/*")
+    tempDir.deleteDir()
+  }
+  
+  // Also clean intermediate build artifacts that contain rtmpdroid classes
+  // These are used during the app build and can cause duplicate class errors
+  def transformsDir = file("${buildDir}/.transforms")
+  if (transformsDir.exists()) {
+    transformsDir.eachDir { transformDir ->
+      // Clean both release and debug variants
+      ["bundleLibRuntimeToDirRelease", "bundleLibRuntimeToDirDebug"].each { variant ->
+        def bundleLibDir = new File(transformDir, "transformed/${variant}")
+        if (bundleLibDir.exists()) {
+          // Look for rtmpdroid in the variant directory and its subdirectories (like bundleLibRuntimeToDirRelease_dex)
+          // Use a more robust approach to find and delete rtmpdroid files
+          def rtmpdroidDirs = []
+          bundleLibDir.eachFileRecurse { file ->
+            def path = file.absolutePath
+            if (path.contains("rtmpdroid")) {
+              if (file.isDirectory()) {
+                rtmpdroidDirs.add(file)
+              } else {
+                file.delete()
+              }
+            }
+          }
+          // Delete directories in reverse order (deepest first)
+          rtmpdroidDirs.sort { -it.absolutePath.length() }.each { dir ->
+            try {
+              dir.deleteDir()
+            } catch (Exception e) {
+              // Ignore if directory doesn't exist or can't be deleted
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// Hook into assemble tasks to clean AAR after creation
+afterEvaluate {
+  tasks.matching { it.name == "assembleRelease" || it.name == "assembleDebug" }.configureEach { task ->
+    task.doLast {
+      def variantName = task.name.contains("Release") ? "release" : "debug"
+      def aarFile = file("${buildDir}/outputs/aar/${project.name}-${variantName}.aar")
+      excludeRtmpdroidFromAar(aarFile)
+    }
+  }
+  
+  // Also handle bundle tasks if they exist
+  tasks.matching { it.name == "bundleReleaseAar" || it.name == "bundleDebugAar" }.configureEach { task ->
+    task.doLast {
+      def variantName = task.name.contains("Release") ? "release" : "debug"
+      def aarFile = file("${buildDir}/outputs/aar/${project.name}-${variantName}.aar")
+      excludeRtmpdroidFromAar(aarFile)
+    }
   }
 }
