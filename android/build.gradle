@@ -96,11 +96,26 @@ android {
 
   ndkVersion (getExtOrDefault("ndkVersion") ?: "27.1.12297006")
   compileSdkVersion getExtOrIntegerDefault("compileSdkVersion")
+  def enableFlexiblePageSize =
+    !(project.findProperty("rtmpdroidLegacyPages")?.toString()?.toBoolean() ?: false)
 
   defaultConfig {
     minSdkVersion getExtOrIntegerDefault("minSdkVersion")
     targetSdkVersion getExtOrIntegerDefault("targetSdkVersion")
     buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", isNewArchitectureEnabled().toString()
+    consumerProguardFiles "consumer-rules.pro"
+    externalNativeBuild {
+      cmake {
+        if (enableFlexiblePageSize) {
+          arguments "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+          arguments "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384"
+          arguments "-DPACKAGING=PACKED"
+        } else {
+          arguments "-DPACKAGING=UNPACKED"
+        }
+        abiFilters "armeabi-v7a", "arm64-v8a"
+      }
+    }
   }
 
   compileOptions {
@@ -110,6 +125,24 @@ android {
 
   buildFeatures {
     buildConfig true
+  }
+
+  externalNativeBuild {
+    cmake {
+      path "src/main/cpp/CMakeLists.txt"
+      version "3.22.1"
+    }
+  }
+
+  buildTypes {
+    release {
+      minifyEnabled false
+      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+    }
+    debug {
+      minifyEnabled false
+      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+    }
   }
 
   kotlinOptions {
@@ -164,6 +197,8 @@ repositories {
     }
     mavenCentral()
     google()
+    // JitPack for pacobabs/StreamPack fork with Android 8.1 fixes
+    maven { url 'https://jitpack.io' }
 }
 
 dependencies {
@@ -176,14 +211,19 @@ dependencies {
     implementation "com.facebook.react:react-android:${getExtOrDefault('reactNativeVersion') ?: '0.73.6'}"
   }
 
-  def apiVideoLiveStreamVersion = "1.4.3"
-
-  implementation("video.api:android-live-stream:$apiVideoLiveStreamVersion") {
+  implementation("video.api:android-live-stream:1.4.3") {
     exclude group: 'video.api', module: 'rtmpdroid'
     // exclude the transitive dependency to use packed version to avoid conflict with libssl.so and libcrypto.so
+    exclude group: 'io.github.thibaultbee', module: 'streampack'
+    // Exclude original StreamPack to use patched version
   }
-  implementation("video.api:rtmpdroid-packed:$apiVideoLiveStreamVersion")
+  
+  // Use patched StreamPack from pacobabs fork with Android 8.1 compatibility fixes
+  implementation 'com.github.pacobabs:StreamPack:android-8.1-compatibility-SNAPSHOT'
+  
   implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+  implementation 'androidx.core:core-ktx:1.12.0'
+  implementation 'androidx.appcompat:appcompat:1.6.1'
 }
 
 def codegenOutputDir = file("$buildDir/generated/source/codegen/jni")
