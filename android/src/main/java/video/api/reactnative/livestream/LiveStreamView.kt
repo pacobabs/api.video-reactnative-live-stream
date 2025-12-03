@@ -158,21 +158,10 @@ class LiveStreamView @JvmOverloads constructor(
        * Force safe audio settings (16kHz mono) on Android 8.1 and below.
        * If AudioRecord fails (emulator), silently skip audio configuration.
        */
-      // Android 8.1 and below: Use minimal audio config
+      // Android 8.1 and below: Use the audio config from Extensions.kt (64k @ 22kHz)
+      // Don't override - Extensions.kt already optimized it for Android 8.1
       // StreamPack will handle AudioRecord failure gracefully (video-only mode)
-      val finalConfig = if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.O_MR1) {
-        Log.w(TAG, "Android 8.1 detected: Using minimal audio config (will fallback to video-only)")
-        AudioConfig(
-          bitrate = 32000,
-          sampleRate = 8000,
-          stereo = false,
-          echoCanceler = false,
-          noiseSuppressor = false
-        )
-      } else {
-        // Android 9+: Use React Native config
-        value
-      }
+      val finalConfig = value  // Use config from Extensions.kt for ALL Android versions
       
       try {
         liveStream.audioConfig = finalConfig
