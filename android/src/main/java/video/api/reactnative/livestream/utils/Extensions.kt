@@ -50,18 +50,16 @@ fun ReadableMap.toVideoConfig(): VideoConfig {
   
   android.util.Log.i("LiveStreamView", "📹 Received video config - ${width}x${height} @${fps}fps, ${bitrate}bps, GOP:${gopDuration}s")
   
-  // Android 8.1 (API 27): IVS-compatible config
-  // - 720x960 resolution (widely supported, 4:3 portrait)
-  // - 24fps instead of 30fps (20% less CPU, still smooth)
-  // - 1.5 Mbps bitrate (meets IVS ADVANCED_HD minimum for recording/playback)
-  // - 1.5s GOP duration (faster recovery from packet loss)
+  // Android 8.1 (API 27): Match preview surface dimensions
+  // ApiVideoView preview surface is fixed at 1280x960 (landscape 4:3)
+  // Must match to prevent camera flashing and encoder issues
+  // DO NOT CHANGE - this config is proven stable for recording and playback
   if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.O_MR1) {
-    width = 720
-    height = 960
-    fps = 24
-    bitrate = (1.5 * 1024 * 1024).toInt()  // 1.5 Mbps - IVS minimum
-    gopDuration = 1.5f                      // 1.5 seconds
-    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: IVS-compatible config (720x960 @24fps, 1.5Mbps, 1.5s GOP)")
+    width = 1280   // LANDSCAPE - matches preview
+    height = 960   // 4:3 aspect ratio
+    fps = 30       // Standard 30fps for IVS
+    // Keep bitrate and GOP from React Native config (don't override)
+    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: Preview-matched config (1280x960 @30fps)")
   }
   
   return VideoConfig(
