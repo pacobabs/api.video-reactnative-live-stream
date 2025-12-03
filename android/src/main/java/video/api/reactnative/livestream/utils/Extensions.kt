@@ -23,12 +23,12 @@ fun ReadableMap.toAudioConfig(): AudioConfig {
   var sampleRate = this.getInt(ViewProps.SAMPLE_RATE)
   var stereo = this.getBoolean(ViewProps.IS_STEREO)
   
-  // Android 8.1: Ultra-light audio to prevent first-use crashes
+  // Android 8.1: Voice-optimized audio (64k mono 22kHz)
   if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.O_MR1) {
-    bitrate = 48000      // 48 kbps - lighter load, still acceptable voice
-    sampleRate = 16000   // 16 kHz - minimal CPU, acceptable quality
+    bitrate = 64000      // 64 kbps - clear voice, IVS compatible
+    sampleRate = 22050   // 22 kHz - optimal for voice
     stereo = false       // Mono - saves 50% bandwidth + CPU
-    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: Ultra-light audio (48k mono 16kHz)")
+    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: Optimized audio (64k mono 22kHz)")
   }
   
   return AudioConfig(
@@ -50,15 +50,16 @@ fun ReadableMap.toVideoConfig(): VideoConfig {
   
   android.util.Log.i("LiveStreamView", "📹 Received video config - ${width}x${height} @${fps}fps, ${bitrate}bps, GOP:${gopDuration}s")
   
-  // Android 8.1 (API 27): Lighter config to prevent first-use crashes
-  // Balance: Low enough for weak OMX encoder, high enough for IVS ADVANCED_HD
+  // Android 8.1 (API 27): Balanced config for weak OMX encoder
+  // CRITICAL: Keep 1280x960 to match ApiVideoView preview surface
+  // Dimension mismatch causes encoder crashes during streaming
   if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.O_MR1) {
-    width = 960    // 960x720 - lighter than 1280x960
-    height = 720   // Still good quality, less CPU
-    fps = 24       // 24fps - 20% less CPU than 30fps
-    gopDuration = 2.0f  // 2s GOP - less frequent keyframes = less CPU
+    width = 1280   // MUST match preview surface (deviation causes crashes)
+    height = 960   
+    fps = 25       // 25fps - 17% less CPU than 30fps, smoother than 24fps
+    gopDuration = 1.5f  // 1.5s GOP - balance between keyframe frequency and CPU
     // Keep bitrate from React Native (1.5 Mbps - IVS ADVANCED_HD minimum)
-    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: Lighter config (960x720 @24fps, GOP:2s)")
+    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: Balanced config (1280x960 @25fps, GOP:1.5s)")
   }
   
   return VideoConfig(
