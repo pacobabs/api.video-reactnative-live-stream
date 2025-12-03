@@ -64,7 +64,14 @@ class LiveStreamViewManager : LiveStreamViewManagerSpec<LiveStreamView>() {
     if (view.isStreaming) {
       view.videoBitrate = value.getInt(ViewProps.BITRATE)
     } else {
-      view.videoConfig = value.toVideoConfig()
+      try {
+        view.videoConfig = value.toVideoConfig()
+      } catch (e: Exception) {
+        // Android 8.1: Log error but don't crash - let JS retry logic handle it
+        android.util.Log.e("LiveStreamView", "Failed to configure video: ${e.message}", e)
+        // Re-throw as IllegalArgumentException so React Native can catch it
+        throw IllegalArgumentException("Failed to configure video encoder: ${e.message}", e)
+      }
     }
   }
 
@@ -73,7 +80,13 @@ class LiveStreamViewManager : LiveStreamViewManagerSpec<LiveStreamView>() {
     if (value == null) {
       throw IllegalArgumentException("Audio config cannot be null")
     }
-    view.audioConfig = value.toAudioConfig()
+    try {
+      view.audioConfig = value.toAudioConfig()
+    } catch (e: Exception) {
+      // Android 8.1: Log error but don't crash - let JS retry logic handle it
+      android.util.Log.e("LiveStreamView", "Failed to configure audio: ${e.message}", e)
+      throw IllegalArgumentException("Failed to configure audio: ${e.message}", e)
+    }
   }
 
   @ReactProp(name = ViewProps.CAMERA)
