@@ -50,18 +50,18 @@ fun ReadableMap.toVideoConfig(): VideoConfig {
   
   android.util.Log.i("LiveStreamView", "📹 Received video config - ${width}x${height} @${fps}fps, ${bitrate}bps, GOP:${gopDuration}s")
   
-  // Android 8.1 (API 27): Ultra-optimized for weak hardware
+  // Android 8.1 (API 27): Stable config for long recordings
   // - 720x960 resolution (widely supported, 4:3 portrait)
   // - 24fps instead of 30fps (20% less CPU, still smooth)
-  // - 1.0 Mbps bitrate (sufficient for 720x960)
-  // - 2s GOP duration (better compression, less I-frames = less CPU)
+  // - 1.2 Mbps bitrate (better quality for saved recordings)
+  // - 1.5s GOP duration (faster recovery from packet loss)
   if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.O_MR1) {
     width = 720
     height = 960
     fps = 24
-    bitrate = 1 * 1024 * 1024  // 1 Mbps
-    gopDuration = 2.0f          // 2 seconds
-    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: Ultra-optimized (720x960 @24fps, 1Mbps, 2s GOP)")
+    bitrate = (1.2 * 1024 * 1024).toInt()  // 1.2 Mbps
+    gopDuration = 1.5f                      // 1.5 seconds
+    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: Stable config (720x960 @24fps, 1.2Mbps, 1.5s GOP)")
   }
   
   return VideoConfig(
