@@ -19,10 +19,22 @@ fun String.getCameraFacing(): CameraFacingDirection {
 }
 
 fun ReadableMap.toAudioConfig(): AudioConfig {
+  var bitrate = this.getInt(ViewProps.BITRATE)
+  var sampleRate = this.getInt(ViewProps.SAMPLE_RATE)
+  var stereo = this.getBoolean(ViewProps.IS_STEREO)
+  
+  // Android 8.1: Voice-optimized audio (64k mono 22kHz)
+  if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.O_MR1) {
+    bitrate = 64000      // 64 kbps - clear voice, 50% less than default
+    sampleRate = 22050   // 22 kHz - optimal for voice, 50% less CPU
+    stereo = false       // Mono - saves 50% bandwidth + CPU
+    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: Optimized audio (64k mono 22kHz)")
+  }
+  
   return AudioConfig(
-    bitrate = this.getInt(ViewProps.BITRATE),
-    sampleRate = this.getInt(ViewProps.SAMPLE_RATE),
-    stereo = this.getBoolean(ViewProps.IS_STEREO),
+    bitrate = bitrate,
+    sampleRate = sampleRate,
+    stereo = stereo,
     echoCanceler = true,
     noiseSuppressor = true
   )
@@ -30,14 +42,33 @@ fun ReadableMap.toAudioConfig(): AudioConfig {
 
 fun ReadableMap.toVideoConfig(): VideoConfig {
   val resolutionMap = this.getMap(ViewProps.RESOLUTION)!!
+  var width = resolutionMap.getInt(ViewProps.WIDTH)
+  var height = resolutionMap.getInt(ViewProps.HEIGHT)
+  var bitrate = this.getInt(ViewProps.BITRATE)
+  var fps = this.getInt(ViewProps.FPS)
+  var gopDuration = this.getDouble(ViewProps.GOP_DURATION).toFloat()
+  
+  android.util.Log.i("LiveStreamView", "📹 Received video config - ${width}x${height} @${fps}fps, ${bitrate}bps, GOP:${gopDuration}s")
+  
+  // Android 8.1 (API 27): Ultra-optimized for weak hardware
+  // - 720x960 resolution (widely supported, 4:3 portrait)
+  // - 24fps instead of 30fps (20% less CPU, still smooth)
+  // - 1.0 Mbps bitrate (sufficient for 720x960)
+  // - 2s GOP duration (better compression, less I-frames = less CPU)
+  if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.O_MR1) {
+    width = 720
+    height = 960
+    fps = 24
+    bitrate = 1 * 1024 * 1024  // 1 Mbps
+    gopDuration = 2.0f          // 2 seconds
+    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: Ultra-optimized (720x960 @24fps, 1Mbps, 2s GOP)")
+  }
+  
   return VideoConfig(
-    bitrate = this.getInt(ViewProps.BITRATE),
-    resolution = Size(
-      resolutionMap.getInt(ViewProps.WIDTH),
-      resolutionMap.getInt(ViewProps.HEIGHT)
-    ),
-    fps = this.getInt(ViewProps.FPS),
-    gopDuration = this.getDouble(ViewProps.GOP_DURATION).toFloat()
+    bitrate = bitrate,
+    resolution = Size(width, height),
+    fps = fps,
+    gopDuration = gopDuration
   )
 }
 
