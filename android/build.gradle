@@ -1,4 +1,6 @@
 import com.android.Version
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.gradle.api.attributes.Attribute
 
 import java.nio.file.Paths
 
@@ -19,11 +21,31 @@ buildscript {
 }
 
 def getExtOrDefault(name) {
-  return rootProject.ext.has(name) ? rootProject.ext.get(name) : project.properties["ApiVideoLivestream_" + name]
+  if (rootProject.ext.has(name)) {
+    return rootProject.ext.get(name)
+  }
+  def lowerKey = "ApiVideoLivestream_${name}"
+  if (project.hasProperty(lowerKey)) {
+    return project.properties[lowerKey]
+  }
+  def camelKey = "ApiVideoLiveStream_${name}"
+  if (project.hasProperty(camelKey)) {
+    return project.properties[camelKey]
+  }
+  return null
 }
 
 def getExtOrIntegerDefault(prop) {
-  return getExtOrDefault(prop).toInteger()
+  def value = getExtOrDefault(prop)
+  if (value == null) {
+    def fallbacks = [
+      compileSdkVersion: 35,
+      minSdkVersion    : 24,
+      targetSdkVersion : 35
+    ]
+    return fallbacks[prop].toInteger()
+  }
+  return value.toInteger()
 }
 
 static def findNodeModulePath(baseDir, packageName) {
@@ -58,9 +80,7 @@ static def supportsNamespace() {
 }
 
 apply plugin: 'com.android.library'
-if (isNewArchitectureEnabled()) {
-    apply plugin: 'com.facebook.react'
-}
+apply plugin: 'com.facebook.react'
 apply plugin: 'kotlin-android'
 
 android {
@@ -74,28 +94,119 @@ android {
     }
   }
 
-  ndkVersion getExtOrDefault("ndkVersion")
+  ndkVersion (getExtOrDefault("ndkVersion") ?: "27.1.12297006")
   compileSdkVersion getExtOrIntegerDefault("compileSdkVersion")
+  def enableFlexiblePageSize =
+    !(project.findProperty("rtmpdroidLegacyPages")?.toString()?.toBoolean() ?: false)
 
   defaultConfig {
     minSdkVersion getExtOrIntegerDefault("minSdkVersion")
     targetSdkVersion getExtOrIntegerDefault("targetSdkVersion")
     buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", isNewArchitectureEnabled().toString()
+    consumerProguardFiles "consumer-rules.pro"
+    externalNativeBuild {
+      cmake {
+        if (enableFlexiblePageSize) {
+          arguments "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+          arguments "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384"
+          arguments "-DPACKAGING=PACKED"
+        } else {
+          arguments "-DPACKAGING=UNPACKED"
+        }
+        abiFilters "armeabi-v7a", "arm64-v8a"
+      }
+    }
   }
 
   compileOptions {
-    sourceCompatibility JavaVersion.VERSION_1_8
-    targetCompatibility JavaVersion.VERSION_1_8
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+
+  buildFeatures {
+    buildConfig true
+  }
+
+  externalNativeBuild {
+    cmake {
+      path "src/main/cpp/CMakeLists.txt"
+      version "3.22.1"
+    }
+  }
+
+  buildTypes {
+    release {
+      minifyEnabled false
+      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+    }
+    debug {
+      minifyEnabled false
+      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+    }
+  }
+
+  kotlinOptions {
+    jvmTarget = "17"
   }
 
   sourceSets {
     main {
+      jniLibs.srcDirs = ["src/main/jniLibs"]
       if (isNewArchitectureEnabled()) {
         java.srcDirs += ["src/newarch"]
       } else {
         java.srcDirs += ["src/oldarch"]
       }
+      // Exclude rtmpdroid classes from source sets to prevent them from being compiled
+      java {
+        exclude "**/video/api/rtmpdroid/**"
+      }
     }
+  }
+
+  packaging {
+    jniLibs {
+      pickFirsts += ["**/librtmpdroid.so"]
+    }
+    // Exclude rtmpdroid classes from being packaged in the AAR
+    // They come from the JAR file dependency, not from the module's own classes
+    resources {
+      excludes += ["**/video/api/rtmpdroid/**"]
+    }
+  }
+  
+  // Exclude rtmpdroid from runtime configurations to prevent classes from being bundled
+  configurations {
+    runtimeElements {
+      exclude group: 'video.api', module: 'rtmpdroid'
+    }
+    releaseRuntimeClasspath {
+      exclude group: 'video.api', module: 'rtmpdroid'
+    }
+    debugRuntimeClasspath {
+      exclude group: 'video.api', module: 'rtmpdroid'
+    }
+  }
+}
+
+kotlin {
+  jvmToolchain {
+    languageVersion.set(JavaLanguageVersion.of(17))
+  }
+  compilerOptions {
+    jvmTarget.set(JvmTarget.JVM_17)
+  }
+}
+
+java {
+  toolchain {
+    languageVersion = JavaLanguageVersion.of(17)
+  }
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+  kotlinOptions {
+    jvmTarget = "17"
   }
 }
 
@@ -107,24 +218,145 @@ if (codegenPath == null) {
 }
 
 repositories {
-    maven {
-        url "${reactNativePath}/android"
+    if (reactNativePath) {
+        maven {
+            url "${reactNativePath}/android"
+        }
     }
     mavenCentral()
     google()
+    // JitPack for pacobabs/StreamPack fork with Android 8.1 fixes
+    maven { url 'https://jitpack.io' }
 }
 
 dependencies {
   // For < 0.71, this will be from the local maven repo
   // For > 0.71, this will be replaced by `com.facebook.react:react-android:$version` by react gradle plugin
   //noinspection GradleDynamicVersion
-  implementation "com.facebook.react:react-native:+"
+  if (reactNativePath) {
+    implementation "com.facebook.react:react-native:+"
+  } else {
+    implementation "com.facebook.react:react-android:${getExtOrDefault('reactNativeVersion') ?: '0.73.6'}"
+  }
 
-  implementation("video.api:rtmpdroid:1.2.1-packed")
   implementation("video.api:android-live-stream:1.4.3") {
     exclude group: 'video.api', module: 'rtmpdroid'
     // exclude the transitive dependency to use packed version to avoid conflict with libssl.so and libcrypto.so
+    exclude group: 'io.github.thibaultbee', module: 'streampack'
+    // Exclude original StreamPack to use patched version
   }
-
+  
+  // Use compileOnly so the JAR is available at compile time but not bundled in the AAR
+  // The app module will include the JAR directly to avoid duplicate classes
+  compileOnly(files("libs/rtmpdroid-1.0.2.jar"))
+  
+  // StreamPack is provided by the app module as a local patched AAR
+  // Located at: frontend/android/app/libs/streampack-2.6.1-patched.aar
   implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+  implementation 'androidx.core:core-ktx:1.12.0'
+  implementation 'androidx.appcompat:appcompat:1.6.1'
+}
+
+if (isNewArchitectureEnabled()) {
+  react {
+    jsRootDir = file("../src")
+    libraryName = "ApiVideoLiveStreamView"
+    codegenJavaPackageName = "video.api.reactnative.livestream"
+  }
+}
+
+// Exclude rtmpdroid classes from the AAR's classes.jar and intermediate build artifacts
+// This prevents duplicate classes when the app includes the JAR directly
+def excludeRtmpdroidFromAar = { aarFile ->
+  if (aarFile.exists()) {
+    def tempDir = file("${buildDir}/tmp/aar-cleanup")
+    tempDir.deleteDir()
+    tempDir.mkdirs()
+    
+    // Extract AAR
+    copy {
+      from zipTree(aarFile)
+      into tempDir
+    }
+    
+    // Remove rtmpdroid classes from classes.jar
+    def classesJar = file("${tempDir}/classes.jar")
+    if (classesJar.exists()) {
+      def classesTempDir = file("${tempDir}/classes-extracted")
+      classesTempDir.deleteDir()
+      classesTempDir.mkdirs()
+      
+      // Extract classes.jar
+      copy {
+        from zipTree(classesJar)
+        into classesTempDir
+      }
+      
+      // Delete rtmpdroid package
+      file("${classesTempDir}/video/api/rtmpdroid").deleteDir()
+      
+      // Recreate classes.jar without rtmpdroid
+      ant.jar(destfile: classesJar, basedir: classesTempDir)
+      classesTempDir.deleteDir()
+    }
+    
+    // Recreate AAR
+    ant.zip(destfile: aarFile, basedir: tempDir, includes: "**/*")
+    tempDir.deleteDir()
+  }
+  
+  // Also clean intermediate build artifacts that contain rtmpdroid classes
+  // These are used during the app build and can cause duplicate class errors
+  def transformsDir = file("${buildDir}/.transforms")
+  if (transformsDir.exists()) {
+    transformsDir.eachDir { transformDir ->
+      // Clean both release and debug variants
+      ["bundleLibRuntimeToDirRelease", "bundleLibRuntimeToDirDebug"].each { variant ->
+        def bundleLibDir = new File(transformDir, "transformed/${variant}")
+        if (bundleLibDir.exists()) {
+          // Look for rtmpdroid in the variant directory and its subdirectories (like bundleLibRuntimeToDirRelease_dex)
+          // Use a more robust approach to find and delete rtmpdroid files
+          def rtmpdroidDirs = []
+          bundleLibDir.eachFileRecurse { file ->
+            def path = file.absolutePath
+            if (path.contains("rtmpdroid")) {
+              if (file.isDirectory()) {
+                rtmpdroidDirs.add(file)
+              } else {
+                file.delete()
+              }
+            }
+          }
+          // Delete directories in reverse order (deepest first)
+          rtmpdroidDirs.sort { -it.absolutePath.length() }.each { dir ->
+            try {
+              dir.deleteDir()
+            } catch (Exception e) {
+              // Ignore if directory doesn't exist or can't be deleted
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// Hook into assemble tasks to clean AAR after creation
+afterEvaluate {
+  tasks.matching { it.name == "assembleRelease" || it.name == "assembleDebug" }.configureEach { task ->
+    task.doLast {
+      def variantName = task.name.contains("Release") ? "release" : "debug"
+      def aarFile = file("${buildDir}/outputs/aar/${project.name}-${variantName}.aar")
+      excludeRtmpdroidFromAar(aarFile)
+    }
+  }
+  
+  // Also handle bundle tasks if they exist
+  tasks.matching { it.name == "bundleReleaseAar" || it.name == "bundleDebugAar" }.configureEach { task ->
+    task.doLast {
+      def variantName = task.name.contains("Release") ? "release" : "debug"
+      def aarFile = file("${buildDir}/outputs/aar/${project.name}-${variantName}.aar")
+      excludeRtmpdroidFromAar(aarFile)
+    }
+  }
 }

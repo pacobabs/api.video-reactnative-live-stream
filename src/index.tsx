@@ -142,14 +142,21 @@ const ApiVideoLiveStreamView = forwardRef<
       : undefined,
     onStartStreaming: (event: NativeSyntheticEvent<OnStartStreamingEvent>) => {
       const { requestId, result, error } = event.nativeEvent;
-      const promise = _requestMap.current.get(requestId);
+      const promiseData = _requestMap.current.get(requestId);
 
-      if (result) {
-        promise?.resolve(result);
-      } else {
-        promise?.reject(error);
+      if (promiseData) {
+        // Clear timeout if it exists
+        if (promiseData.timeoutId) {
+          clearTimeout(promiseData.timeoutId);
+        }
+        
+        if (result) {
+          promiseData.resolve(result);
+        } else {
+          promiseData.reject(error);
+        }
+        _requestMap.current.delete(requestId);
       }
-      _requestMap.current.delete(requestId);
     },
   };
 
@@ -160,7 +167,11 @@ const ApiVideoLiveStreamView = forwardRef<
   const _requestMap = useRef<
     Map<
       number,
-      { resolve: (result: boolean) => void; reject: (error?: string) => void }
+      { 
+        resolve: (result: boolean) => void; 
+        reject: (error?: string) => void;
+        timeoutId?: NodeJS.Timeout;
+      }
     >
   >(new Map());
 
@@ -171,7 +182,17 @@ const ApiVideoLiveStreamView = forwardRef<
         const requestMap = _requestMap;
 
         const promise = new Promise<boolean>((resolve, reject) => {
-          requestMap.current.set(requestId, { resolve, reject });
+          // Timeout after 20 seconds to prevent promise from hanging forever
+          const timeoutId = setTimeout(() => {
+            const promiseData = requestMap.current.get(requestId);
+            if (promiseData) {
+              requestMap.current.delete(requestId);
+              reject('Stream start timeout after 20s. The native event may not have been emitted.');
+            }
+          }, 20000);
+          
+          // Store promise data with timeout ID
+          requestMap.current.set(requestId, { resolve, reject, timeoutId });
         });
 
         NativeLiveStreamCommands.startStreaming(

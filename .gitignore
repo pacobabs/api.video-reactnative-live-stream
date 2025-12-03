@@ -67,6 +67,7 @@ yarn-error.log
 
 # Yarn
 .yarn/*
+example/.yarn/*
 !.yarn/patches
 !.yarn/plugins
 !.yarn/releases
