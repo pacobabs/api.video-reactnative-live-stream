@@ -23,12 +23,12 @@ fun ReadableMap.toAudioConfig(): AudioConfig {
   var sampleRate = this.getInt(ViewProps.SAMPLE_RATE)
   var stereo = this.getBoolean(ViewProps.IS_STEREO)
   
-  // Android 8.1: STABLE CONFIG from working APK
+  // Android 8.1: OPTIMIZED CONFIG for memory-constrained OMX encoder
   if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.O_MR1) {
-    bitrate = 64000      // 64 kbps - stable, proven to work
-    sampleRate = 22050   // 22 kHz - stable, proven to work
+    bitrate = 56000      // 56 kbps - AAC-LC sweet spot for voice, 12% lighter
+    sampleRate = 22050   // 22 kHz - voice sweet spot (don't lower)
     stereo = false       // Mono - saves 50% bandwidth + CPU
-    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: Stable config (64k mono 22kHz)")
+    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: Optimized config (56k mono 22kHz)")
   }
   
   return AudioConfig(
@@ -50,16 +50,16 @@ fun ReadableMap.toVideoConfig(): VideoConfig {
   
   android.util.Log.i("LiveStreamView", "📹 Received video config - ${width}x${height} @${fps}fps, ${bitrate}bps, GOP:${gopDuration}s")
   
-  // Android 8.1 (API 27): STABLE CONFIG from working APK
+  // Android 8.1 (API 27): OPTIMIZED CONFIG for memory-constrained OMX encoder
   // CRITICAL: Keep 1280x960 to match ApiVideoView preview surface
   // Dimension mismatch causes encoder crashes during streaming
   if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.O_MR1) {
     width = 1280   // MUST match preview surface (deviation causes crashes)
     height = 960   
-    fps = 30       // 30fps - stable, proven to work
-    gopDuration = 1.0f  // 1s GOP - stable, proven to work
+    fps = 25       // 25fps - OMX sweet spot, 17% less CPU than 30fps
+    gopDuration = 1.5f  // 1.5s GOP - 33% fewer keyframes, less memory spikes
     // Keep bitrate from React Native (1.5 Mbps - IVS ADVANCED_HD minimum)
-    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: Stable config (1280x960 @30fps, GOP:1s)")
+    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: Optimized config (1280x960 @25fps, GOP:1.5s)")
   }
   
   return VideoConfig(
