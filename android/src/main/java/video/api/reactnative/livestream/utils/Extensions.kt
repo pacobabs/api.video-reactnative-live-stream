@@ -23,12 +23,12 @@ fun ReadableMap.toAudioConfig(): AudioConfig {
   var sampleRate = this.getInt(ViewProps.SAMPLE_RATE)
   var stereo = this.getBoolean(ViewProps.IS_STEREO)
   
-  // Android 8.1: Memory-optimized audio for multi-app scenarios
+  // Android 8.1: Minimal audio for weak OMX encoder
   if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.O_MR1) {
-    bitrate = 56000      // 56 kbps - lighter for multi-app scenarios
+    bitrate = 48000      // 48 kbps - minimal but IVS-compatible
     sampleRate = 22050   // 22 kHz - voice-optimized
     stereo = false       // Mono - saves 50% bandwidth + CPU
-    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: Memory-optimized audio (56k mono 22kHz)")
+    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: Ultra-light audio (48k mono 22kHz)")
   }
   
   return AudioConfig(
@@ -50,16 +50,16 @@ fun ReadableMap.toVideoConfig(): VideoConfig {
   
   android.util.Log.i("LiveStreamView", "📹 Received video config - ${width}x${height} @${fps}fps, ${bitrate}bps, GOP:${gopDuration}s")
   
-  // Android 8.1 (API 27): Memory-optimized for multi-app scenarios
+  // Android 8.1 (API 27): Ultra-light for weak OMX encoder
   // CRITICAL: Keep 1280x960 to match ApiVideoView preview surface
   // Dimension mismatch causes encoder crashes during streaming
   if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.O_MR1) {
     width = 1280   // MUST match preview surface (deviation causes crashes)
     height = 960   
-    fps = 24       // 24fps - 20% less CPU/memory than 30fps
-    gopDuration = 2.0f  // 2s GOP - less keyframes = less memory
+    fps = 20       // 20fps - 33% less CPU than 30fps, minimal memory
+    gopDuration = 3.0f  // 3s GOP - 33% fewer keyframes, minimal memory spikes
     // Keep bitrate from React Native (1.5 Mbps - IVS ADVANCED_HD minimum)
-    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: Memory-optimized (1280x960 @24fps, GOP:2s)")
+    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: Ultra-light (1280x960 @20fps, GOP:3s)")
   }
   
   return VideoConfig(
