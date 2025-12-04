@@ -57,9 +57,9 @@ fun ReadableMap.toVideoConfig(): VideoConfig {
     width = 1280   // MUST match preview surface (deviation causes crashes)
     height = 960   
     fps = 25       // 25fps - OMX sweet spot, 17% less CPU than 30fps
+    bitrate = 1300000  // 1.3 Mbps - optimized for 25fps, 13% less bandwidth
     gopDuration = 1.5f  // 1.5s GOP - 33% fewer keyframes, less memory spikes
-    // Keep bitrate from React Native (1.5 Mbps - IVS ADVANCED_HD minimum)
-    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: Optimized config (1280x960 @25fps, GOP:1.5s)")
+    android.util.Log.i("LiveStreamView", "🔧 Android 8.1: Optimized (1280x960 @25fps, 1.3Mbps, GOP:1.5s)")
   }
   
   return VideoConfig(
